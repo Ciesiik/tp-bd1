@@ -84,6 +84,13 @@ CREATE TABLE detalle_pedido_vehiculo (
   FOREIGN KEY (id_modelo) REFERENCES modelo(id_modelo)
 );
 
+-- Un pedido genera N vehiculos, pero cada vehiculo corresponde a un unico pedido.
+-- Se agrega con ALTER porque la tabla vehiculo se crea antes que pedido_vehiculo
+ALTER TABLE vehiculo
+  ADD COLUMN id_pedido INT NOT NULL AFTER id_modelo,
+  ADD CONSTRAINT fk_vehiculo_pedido
+      FOREIGN KEY (id_pedido) REFERENCES pedido_vehiculo(id_pedido);
+
 CREATE TABLE proveedor (
   id_proveedor INT AUTO_INCREMENT PRIMARY KEY,
   razon_social VARCHAR(100) NOT NULL,
@@ -402,6 +409,9 @@ BEGIN
     ELSEIF EXISTS (SELECT 1 FROM detalle_pedido_vehiculo WHERE id_pedido = p_id_pedido) THEN
         SET nResultado = -2;
         SET cMensaje = 'No se puede eliminar el pedido porque posee un detalle de vehículos asociado.';
+    ELSEIF EXISTS (SELECT 1 FROM vehiculo WHERE id_pedido = p_id_pedido) THEN
+        SET nResultado = -3;
+        SET cMensaje = 'No se puede eliminar el pedido porque sus vehículos ya fueron generados.';
     ELSE
         DELETE FROM pedido_vehiculo WHERE id_pedido = p_id_pedido;
     END IF;
@@ -429,6 +439,9 @@ BEGIN
     ELSEIF NOT EXISTS (SELECT 1 FROM modelo WHERE id_modelo = p_id_modelo) THEN
         SET nResultado = -2;
         SET cMensaje = 'El modelo de vehículo especificado no existe.';
+    ELSEIF EXISTS (SELECT 1 FROM vehiculo WHERE id_pedido = p_id_pedido) THEN
+        SET nResultado = -4;
+        SET cMensaje = 'No se puede agregar detalle porque los vehículos de este pedido ya fueron generados.';
     ELSEIF EXISTS (SELECT 1 FROM detalle_pedido_vehiculo WHERE id_pedido = p_id_pedido AND id_modelo = p_id_modelo) THEN
         SET nResultado = -3;
         SET cMensaje = 'Este modelo ya fue agregado a este pedido.';
@@ -452,6 +465,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM detalle_pedido_vehiculo WHERE id_pedido = p_id_pedido AND id_modelo = p_id_modelo) THEN
         SET nResultado = -1;
         SET cMensaje = 'El detalle de pedido a modificar no existe.';
+    ELSEIF EXISTS (SELECT 1 FROM vehiculo WHERE id_pedido = p_id_pedido) THEN
+        SET nResultado = -2;
+        SET cMensaje = 'No se puede modificar el detalle porque los vehículos de este pedido ya fueron generados.';
     ELSE
         UPDATE detalle_pedido_vehiculo
         SET cantidad = p_cantidad
@@ -472,6 +488,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM detalle_pedido_vehiculo WHERE id_pedido = p_id_pedido AND id_modelo = p_id_modelo) THEN
         SET nResultado = -1;
         SET cMensaje = 'El detalle de pedido a eliminar no existe.';
+    ELSEIF EXISTS (SELECT 1 FROM vehiculo WHERE id_pedido = p_id_pedido) THEN
+        SET nResultado = -2;
+        SET cMensaje = 'No se puede eliminar el detalle porque los vehículos de este pedido ya fueron generados.';
     ELSE
         DELETE FROM detalle_pedido_vehiculo
         WHERE id_pedido = p_id_pedido AND id_modelo = p_id_modelo;

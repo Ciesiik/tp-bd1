@@ -14,6 +14,10 @@ Este repositorio contiene el trabajo del proyecto de base de datos para una term
 - `sp_crearVehiculosPedidos.sql`
 - Contiene la lógica para generar vehículos a partir de un pedido registrado.
 - Permite recorrer el detalle del pedido y crear registros de vehículos según la cantidad indicada.
+- Controla que cada pedido se procese una sola vez: como cada vehículo registra a qué pedido pertenece, el procedimiento detecta si ya fueron generados y evita volver a crearlos.
+- Valida que el pedido exista y que tenga detalle cargado antes de generar.
+- Genera todos los vehículos dentro de una transacción, de modo que un fallo a la mitad del proceso no deja el pedido a medio generar.
+- Incluye casos de prueba de las validaciones.
 - Es un script específico para una funcionalidad de negocio del sistema.
 
 ### 3) Modelo conceptual / lógico
@@ -40,12 +44,12 @@ El repositorio se organiza alrededor de un esquema SQL que representa un sistema
 
 - Diseño: `modelos.mwb` y `DER_terminal_automotriz.png`
 - Estructura de datos: `terminal_automotriz.sql`
-- Lógica de negocio: `sp_crearVehiculosPedidos.sql` y otros procedimientos dentro del script principal
+- Lógica de negocio: `sp_crearVehiculosPedidos.sql` y otros procedimientos dentro del script principal, que incluyen el control de ejecución única por pedido y el bloqueo del detalle una vez generados los vehículos.
 
 En otras palabras:
 
 - Si querés entender las entidades y relaciones, revisá el modelo y el diagrama.
-- Si querés levantar la base de datos desde cero, ejecutá `terminal_automotriz.sql`.
+- Si querés levantar la base de datos desde cero, ejecutá `terminal_automotriz.sql` y después `sp_crearVehiculosPedidos.sql`, que va en un archivo aparte.
 - Si querés revisar una funcionalidad puntual, revisá el stored procedure o el bloque correspondiente dentro del SQL.
 
 ---
@@ -130,7 +134,7 @@ Si la rama principal está protegida, la integración debe pasar por revisión y
 ## Resumen rápido
 
 - `terminal_automotriz.sql`: base de datos completa y procedimientos.
-- `sp_crearVehiculosPedidos.sql`: lógica de generación de vehículos por pedido.
+- `sp_crearVehiculosPedidos.sql`: lógica de generación de vehículos por pedido, con control de ejecución única.
 - `modelos.mwb`: diseño visual del esquema.
 - `DER_terminal_automotriz.png`: diagrama del sistema.
 - `TP Integrador.pdf`: referencia del trabajo práctico.

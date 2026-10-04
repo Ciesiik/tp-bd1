@@ -2,6 +2,7 @@ DROP DATABASE terminal_automotriz;
 CREATE DATABASE IF NOT EXISTS terminal_automotriz;
 USE terminal_automotriz;
 
+-- =================== ETAPA 1 =================== --
 CREATE TABLE concesionaria (
   id_concesionaria INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(50) NOT NULL,
@@ -17,7 +18,7 @@ CREATE TABLE modelo (
 CREATE TABLE linea_montaje (
   id_linea INT AUTO_INCREMENT PRIMARY KEY,
   id_modelo INT NOT NULL UNIQUE,
-  capacidad_mensual INT NOT NULL,
+  capacidad_mensual INT NULL,
   FOREIGN KEY (id_modelo) REFERENCES modelo(id_modelo)
 );
 
@@ -125,8 +126,8 @@ CREATE TABLE detalle_compra_insumo (
     FOREIGN KEY (id_insumo)
         REFERENCES insumo (id_insumo)
 );
+-- =============================================== --
 
--- ////////////////////////////////////////////////////////////////////////////////////////////////////// --
 -- ej. stored procedure
 DELIMITER //
 CREATE PROCEDURE getModelos()
@@ -136,7 +137,7 @@ END//
 
 DELIMITER ;
 
--- === ETAPA 2 - ABMs =========================================
+-- =================== ETAPA 2 - ABMs =================== --
 
 DELIMITER //
 
@@ -637,6 +638,68 @@ BEGIN
     END IF;
 END//
 
+-- ============================================================
+-- 5. MODELO Y LINEA DE MONTAJE
+-- ============================================================
+INSERT INTO tarea(id_tarea, tarea) 
+VALUES	(1, "Ensamblado de chapa"),
+		(2, "Pintado de carrocería"),
+		(3, "Mecánica motor"),
+		(4, "Mecánica rodaje"),
+		(5, "Electricidad"),
+		(6, "Probado");
+
+CREATE PROCEDURE sp_altaModeloYLineaMontaje(
+    IN p_nombre_modelo VARCHAR(50),
+    OUT nResultado INT,
+    OUT cMensaje VARCHAR(256)
+)
+BEGIN
+    DECLARE v_id_modelo INT;
+    DECLARE v_id_linea INT;
+
+    -- Handler para deshacer todas las inserciones si algo falla
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        SET nResultado = -1;
+        SET cMensaje = 'Error inesperado al crear el modelo, la línea y las estaciones.';
+    END;
+
+    SET nResultado = 0;
+    SET cMensaje = '';
+
+    -- Validar si el modelo ya existe
+    IF EXISTS (SELECT 1 FROM modelo WHERE nombre = p_nombre_modelo) THEN
+        SET nResultado = -2;
+        SET cMensaje = 'El modelo ya se encuentra registrado.';
+    ELSE
+        START TRANSACTION;
+        
+        -- 1. Insertamos el modelo
+        INSERT INTO modelo (nombre) VALUES (p_nombre_modelo);
+        SET v_id_modelo = LAST_INSERT_ID();
+
+        -- 2. Insertamos la línea de montaje vinculada a ese modelo
+        INSERT INTO linea_montaje (id_modelo) 
+        VALUES (v_id_modelo);
+        SET v_id_linea = LAST_INSERT_ID();
+
+        -- 3. Insertamos las estaciones de trabajo predeterminadas para esa línea
+        INSERT INTO estacion_trabajo (id_linea, orden, id_tarea) VALUES 
+        (v_id_linea, 1, 1), -- Ensamblado de chapa
+        (v_id_linea, 2, 2), -- Pintura
+        (v_id_linea, 3, 3), -- Mecánica motor
+        (v_id_linea, 4, 4), -- Mecánica rodaje
+        (v_id_linea, 5, 5), -- Electricidad
+        (v_id_linea, 6, 6); -- Prueba
+
+        COMMIT;
+        
+        SET cMensaje = 'Modelo, línea y estaciones de trabajo creados exitosamente.';
+    END IF;
+END//
+
 DELIMITER ;
 
 -- ============================================================
@@ -648,12 +711,11 @@ USE terminal_automotriz;
 -- ============================================================
 -- 1. DATOS BASE OBLIGATORIOS (MODELOS)
 -- ============================================================
-INSERT INTO modelo (nombre) VALUES 
-('Cronos Precision 1.3'),
-('Toro Volcano 2.0 4x4'),
-('Pulse Impetus 1.0T'),
-('Fastback Audace 1.0T'),
-('Strada Ranch 1.3 CD');
+CALl sp_altaModeloYLineaMontaje('Cronos Precision 1.3', @res, @msj);
+call sp_altaModeloYLineaMontaje('Toro Volcano 2.0 4x4', @res, @msj);
+call sp_altaModeloYLineaMontaje('Pulse Impetus 1.0T', @res, @msj);
+call sp_altaModeloYLineaMontaje('Fastback Audace 1.0T', @res, @msj);
+call sp_altaModeloYLineaMontaje('Strada Ranch 1.3 CD', @res, @msj);
 
 -- ============================================================
 -- 2. POBLADO DE TABLAS
@@ -792,3 +854,6 @@ SELECT * FROM pedido_vehiculo;
 SELECT * FROM detalle_pedido_vehiculo;
 SELECT * FROM compra_insumo;
 SELECT * FROM detalle_compra_insumo;
+SELECT * FROM modelo;
+SELECT * FROM tarea;
+SELECT * FROM linea_montaje;

@@ -3,6 +3,7 @@ USE terminal_automotriz;
 DROP PROCEDURE IF EXISTS sp_crearVehiculosPedidos;
 
 DELIMITER //
+-- =========== PUNTO 3(a) =========== --
 CREATE PROCEDURE sp_crearVehiculosPedidos(
 	IN p_id_pedido INT,
     OUT nResultado INT,
@@ -87,6 +88,74 @@ BEGIN
 		COMMIT;
 
 		SET cMensaje = 'Vehiculos creados exitosamente.';
+    END IF;
+END//
+
+-- =========== PUNTO 3(b) =========== --
+DROP PROCEDURE IF EXISTS sp_iniciarMontajeVehiculo;
+
+CREATE PROCEDURE sp_iniciarMontajeVehiculo(
+    IN p_num_chasis VARCHAR(17),
+    OUT nResultado INT,
+    OUT cMensaje VARCHAR(256)
+)
+BEGIN
+    DECLARE v_id_modelo INT;
+    DECLARE v_id_linea INT;
+    DECLARE v_id_estacion_1 INT;
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        SET nResultado = -1;
+        SET cMensaje = 'Error inesperado al iniciar el montaje del vehículo.';
+    END;
+
+    SET nResultado = 0;
+    SET cMensaje = '';
+
+    -- 1. Validaciones previas
+    IF NOT EXISTS (SELECT 1 FROM vehiculo WHERE num_chasis = p_num_chasis) THEN
+        SET nResultado = -2;
+        SET cMensaje = 'El vehículo especificado no existe.';
+    ELSEIF EXISTS (SELECT 1 FROM vehiculo WHERE num_chasis = p_num_chasis AND fecha_fin IS NOT NULL) THEN
+        SET nResultado = -3;
+        SET cMensaje = 'El vehículo ya completó previamente su proceso de fabricación.';
+    ELSEIF EXISTS (SELECT 1 FROM registro_vehiculo_estacion WHERE num_chasis = p_num_chasis AND fecha_hora_egreso IS NULL) THEN
+        SET nResultado = -4;
+        SET cMensaje = 'El vehículo ya se encuentra ingresado en una estación de montaje activa.';
+    ELSE
+        -- 2. Obtener el modelo y la línea de montaje asociada
+        SELECT v.id_modelo, l.id_linea 
+        INTO v_id_modelo, v_id_linea
+        FROM vehiculo v
+        INNER JOIN linea_montaje l ON v.id_modelo = l.id_modelo
+        WHERE v.num_chasis = p_num_chasis;
+
+        -- 3. Obtener el id_estacion correspondiente a orden = 1
+        SELECT id_estacion INTO v_id_estacion_1
+        FROM estacion_trabajo
+        WHERE id_linea = v_id_linea AND orden = 1
+        LIMIT 1;
+
+        IF v_id_estacion_1 IS NULL THEN
+            SET nResultado = -5;
+            SET cMensaje = 'No se encontró la estación inicial (orden 1) para la línea de montaje de este vehículo.';
+        -- 4. Validar si la estación 1 está ocupada por otro vehículo
+        ELSEIF EXISTS (SELECT 1 FROM registro_vehiculo_estacion WHERE id_estacion = v_id_estacion_1 AND fecha_hora_egreso IS NULL) THEN
+            SET nResultado = -6;
+            SET cMensaje = 'La estación inicial (1) de la línea de montaje se encuentra ocupada por otro vehículo.';
+        ELSE
+            -- 5. Insertar el inicio del recorrido
+            START TRANSACTION;
+
+            INSERT INTO registro_vehiculo_estacion (num_chasis, id_estacion, fecha_hora_ingreso)
+            VALUES (p_num_chasis, v_id_estacion_1, NOW());
+
+            COMMIT;
+
+            SET cMensaje = 'Vehículo ingresado a la estación inicial (1) de montaje exitosamente.';
+        END IF;
     END IF;
 END//
 

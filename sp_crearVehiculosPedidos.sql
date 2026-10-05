@@ -163,8 +163,9 @@ DELIMITER ;
 
 
 -- ============================================================
--- CASOS DE PRUEBA
+-- CASOS DE PRUEBA: sp_crearVehiculosPedidos
 -- ============================================================
+
 -- Requisito: ejecutar terminal_automotriz.sql primero, para tener
 -- los datos de prueba cargados (concesionarias, modelos y pedidos).
 
@@ -218,9 +219,88 @@ SELECT @res AS Resultado, @msj AS Mensaje_Error_Esperado;
 CALL sp_bajaDetallePedidoVehiculo(2, 3, @res, @msj);
 SELECT @res AS Resultado, @msj AS Mensaje_Error_Esperado;
 
-
 -- --- ESTADO FINAL ---
 SELECT id_pedido, id_modelo, COUNT(*) AS generados
 FROM vehiculo
 GROUP BY id_pedido, id_modelo
 ORDER BY id_pedido, id_modelo;
+
+
+-- ============================================================================
+-- CASOS DE PRUEBA: sp_iniciarMontajeVehiculo
+-- ============================================================================
+
+-- A) Seleccionar un chasis nuevo que NO haya ingresado a montaje todavía
+SELECT num_chasis INTO @chasis_1
+FROM vehiculo v
+WHERE NOT EXISTS (
+    SELECT 1 FROM registro_vehiculo_estacion r WHERE r.num_chasis = v.num_chasis
+) AND v.fecha_fin IS NULL
+LIMIT 1;
+
+-- B) Seleccionar un SEGUNDO chasis del MISMO modelo para la prueba de estación ocupada
+SELECT num_chasis INTO @chasis_2
+FROM vehiculo v
+WHERE v.id_modelo = (SELECT id_modelo FROM vehiculo WHERE num_chasis = @chasis_1)
+  AND v.num_chasis <> @chasis_1
+  AND NOT EXISTS (
+      SELECT 1 FROM registro_vehiculo_estacion r WHERE r.num_chasis = v.num_chasis
+  ) AND v.fecha_fin IS NULL
+LIMIT 1;
+
+-- C) Seleccionar (si existe) un chasis ya finalizado
+SELECT num_chasis INTO @chasis_finalizado
+FROM vehiculo
+WHERE fecha_fin IS NOT NULL
+LIMIT 1;
+
+
+-- ----------------------------------------------------------------------------
+-- PRUEBA 1: Éxito - Ingreso correcto a la Estación 1 (Esperado: Resultado = 0)
+-- ----------------------------------------------------------------------------
+SET @res = 0; SET @msj = '';
+
+CALL sp_iniciarMontajeVehiculo(@chasis_1, @res, @msj);
+SELECT 'Prueba 1 (Éxito)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+-- Verificación del registro generado
+SELECT * FROM registro_vehiculo_estacion 
+WHERE num_chasis = @chasis_1 AND fecha_hora_egreso IS NULL;
+
+
+-- ----------------------------------------------------------------------------
+-- PRUEBA 2: Error - Vehículo Inexistente (Esperado: Resultado = -2)
+-- ----------------------------------------------------------------------------
+SET @res = 0; SET @msj = '';
+
+CALL sp_iniciarMontajeVehiculo('INEXISTENTE', @res, @msj);
+SELECT 'Prueba 2 (Inexistente)' AS Test, 'INEXISTENTE' AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+
+-- ----------------------------------------------------------------------------
+-- PRUEBA 3: Error - Vehículo ya Finalizado (Esperado: Resultado = -3)
+-- ----------------------------------------------------------------------------
+SET @res = 0; SET @msj = '';
+
+CALL sp_iniciarMontajeVehiculo(@chasis_finalizado, @res, @msj);
+SELECT 'Prueba 3 (Finalizado)' AS Test, @chasis_finalizado AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+
+-- ----------------------------------------------------------------------------
+-- PRUEBA 4: Error - Vehículo ya Activo en Montaje (Esperado: Resultado = -4)
+-- ----------------------------------------------------------------------------
+-- Intentamos ingresar de nuevo @chasis_1 que ingresó en la Prueba 1
+SET @res = 0; SET @msj = '';
+
+CALL sp_iniciarMontajeVehiculo(@chasis_1, @res, @msj);
+SELECT 'Prueba 4 (Ya Activo)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+
+-- ----------------------------------------------------------------------------
+-- PRUEBA 5: Error - Estación 1 Ocupada por Otro Auto (Esperado: Resultado = -6)
+-- ----------------------------------------------------------------------------
+-- Intentamos ingresar @chasis_2 mientras @chasis_1 sigue ocupando la Estación 1
+SET @res = 0; SET @msj = '';
+
+CALL sp_iniciarMontajeVehiculo(@chasis_2, @res, @msj);
+SELECT 'Prueba 5 (Estación Ocupada)' AS Test, @chasis_2 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;

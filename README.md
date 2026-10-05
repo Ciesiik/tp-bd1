@@ -10,15 +10,29 @@ Este repositorio contiene el trabajo del proyecto de base de datos para una term
 - Es el archivo principal para levantar el esquema del sistema.
 - Se recomienda usarlo como punto de entrada para reproducir la base de datos en un entorno MySQL.
 
-### 2) Stored procedure de creación de vehículos
-- `sp_crearVehiculosPedidos.sql`
-- Contiene la lógica para generar vehículos a partir de un pedido registrado.
-- Permite recorrer el detalle del pedido y crear registros de vehículos según la cantidad indicada.
-- Controla que cada pedido se procese una sola vez: como cada vehículo registra a qué pedido pertenece, el procedimiento detecta si ya fueron generados y evita volver a crearlos.
-- Valida que el pedido exista y que tenga detalle cargado antes de generar.
-- Genera todos los vehículos dentro de una transacción, de modo que un fallo a la mitad del proceso no deja el pedido a medio generar.
-- Incluye casos de prueba de las validaciones.
-- Es un script específico para una funcionalidad de negocio del sistema.
+### 2) Script completo de la etapa 3 del trabajo
+
+- `SPs_etapa_3.sql`
+- Reúne la lógica de negocio productiva, transaccional y los casos de prueba de la etapa:
+
+  - **sp_crearVehiculosPedidos**
+    - Contiene la lógica para generar vehículos a partir de un pedido registrado.
+    - Recorre el detalle del pedido y crea los registros de vehículos según la cantidad indicada.
+    - Controla que cada pedido se procese una sola vez para evitar duplicados.
+    - Valida que el pedido exista y tenga detalle cargado antes de generar.
+    - Ejecuta toda la creación dentro de una transacción atómica.
+
+  - **sp_iniciarMontajeVehiculo**
+    - Contiene la lógica para ingresar formalmente un vehículo a la línea de producción.
+    - Busca la línea correspondiente según el modelo del auto y lo posiciona en la estación de inicio (orden 1).
+    - Valida que el vehículo exista, no haya sido finalizado previamente y no se encuentre activo.
+    - Verifica que la Estación 1 esté libre antes de registrar el ingreso.
+
+  - **sp_avanzarVehiculoEstacion**
+    - Gestiona el flujo progresivo del vehículo a través de las estaciones de trabajo.
+    - Determina la estación consecutiva (`orden + 1`) dentro de su línea.
+    - Evalúa que la siguiente estación esté libre antes de avanzar.
+    - Detecta la última estación de la línea, registrando el egreso final y la fecha de finalización (`fecha_fin`) en la tabla de vehículos.
 
 ### 3) Modelo conceptual / lógico
 - `modelos.mwb`

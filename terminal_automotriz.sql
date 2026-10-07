@@ -1,4 +1,4 @@
-DROP DATABASE terminal_automotriz;
+DROP DATABASE IF EXISTS terminal_automotriz;
 CREATE DATABASE IF NOT EXISTS terminal_automotriz;
 USE terminal_automotriz;
 
@@ -7,7 +7,7 @@ CREATE TABLE concesionaria (
   id_concesionaria INT AUTO_INCREMENT PRIMARY KEY,
   nombre VARCHAR(50) NOT NULL,
   direccion VARCHAR(100) NOT NULL,
-  telefono INT NULL
+  telefono VARCHAR(20) NULL
 );
 
 CREATE TABLE modelo (
@@ -32,6 +32,7 @@ CREATE TABLE estacion_trabajo (
   id_linea INT NOT NULL,
   orden INT NOT NULL,
   id_tarea INT NOT NULL,
+  UNIQUE KEY uq_estacion_linea_orden (id_linea, orden),
   FOREIGN KEY (id_linea) REFERENCES linea_montaje(id_linea),
   FOREIGN KEY (id_tarea) REFERENCES tarea(id_tarea)
 );
@@ -96,7 +97,7 @@ CREATE TABLE proveedor (
   id_proveedor INT AUTO_INCREMENT PRIMARY KEY,
   razon_social VARCHAR(100) NOT NULL,
   direccion VARCHAR(100) NOT NULL,
-  telefono INT NOT NULL
+  telefono VARCHAR(20) NOT NULL
 );
 
 CREATE TABLE proveedor_insumo (
@@ -148,7 +149,7 @@ DELIMITER //
 CREATE PROCEDURE sp_altaConcesionaria(
     IN p_nombre VARCHAR(50),
     IN p_direccion VARCHAR(100),
-    IN p_telefono INT,
+    IN p_telefono VARCHAR(20),
     OUT nResultado INT,
     OUT cMensaje VARCHAR(256)
 )
@@ -169,7 +170,7 @@ CREATE PROCEDURE sp_modificacionConcesionaria(
     IN p_id_concesionaria INT,
     IN p_nombre VARCHAR(50),
     IN p_direccion VARCHAR(100),
-    IN p_telefono INT,
+    IN p_telefono VARCHAR(20),
     OUT nResultado INT,
     OUT cMensaje VARCHAR(256)
 )
@@ -180,6 +181,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM concesionaria WHERE id_concesionaria = p_id_concesionaria) THEN
         SET nResultado = -1;
         SET cMensaje = 'La concesionaria a modificar no existe.';
+    ELSEIF EXISTS (SELECT 1 FROM concesionaria WHERE direccion = p_direccion AND id_concesionaria <> p_id_concesionaria) THEN
+        SET nResultado = -2;
+        SET cMensaje = 'Ya existe otra concesionaria con esa dirección.';
     ELSE
         UPDATE concesionaria
         SET nombre = p_nombre, direccion = p_direccion, telefono = p_telefono
@@ -215,7 +219,7 @@ END//
 CREATE PROCEDURE sp_altaProveedor(
     IN p_razon_social VARCHAR(100),
     IN p_direccion VARCHAR(100),
-    IN p_telefono INT,
+    IN p_telefono VARCHAR(20),
     OUT nResultado INT,
     OUT cMensaje VARCHAR(256)
 )
@@ -236,7 +240,7 @@ CREATE PROCEDURE sp_modificacionProveedor(
     IN p_id_proveedor INT,
     IN p_razon_social VARCHAR(100),
     IN p_direccion VARCHAR(100),
-    IN p_telefono INT,
+    IN p_telefono VARCHAR(20),
     OUT nResultado INT,
     OUT cMensaje VARCHAR(256)
 )
@@ -247,6 +251,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM proveedor WHERE id_proveedor = p_id_proveedor) THEN
         SET nResultado = -1;
         SET cMensaje = 'El proveedor a modificar no existe.';
+    ELSEIF EXISTS (SELECT 1 FROM proveedor WHERE razon_social = p_razon_social AND id_proveedor <> p_id_proveedor) THEN
+        SET nResultado = -2;
+        SET cMensaje = 'Ya existe otro proveedor con esa razón social.';
     ELSE
         UPDATE proveedor
         SET razon_social = p_razon_social, direccion = p_direccion, telefono = p_telefono
@@ -313,6 +320,9 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM insumo WHERE id_insumo = p_id_insumo) THEN
         SET nResultado = -1;
         SET cMensaje = 'El insumo a modificar no existe.';
+    ELSEIF EXISTS (SELECT 1 FROM insumo WHERE descripcion = p_descripcion AND id_insumo <> p_id_insumo) THEN
+        SET nResultado = -2;
+        SET cMensaje = 'Ya existe otro insumo con esa descripción.';
     ELSE
         UPDATE insumo
         SET descripcion = p_descripcion
@@ -711,7 +721,7 @@ USE terminal_automotriz;
 -- ============================================================
 -- 1. DATOS BASE OBLIGATORIOS (MODELOS)
 -- ============================================================
-CALl sp_altaModeloYLineaMontaje('Cronos Precision 1.3', @res, @msj);
+CALL sp_altaModeloYLineaMontaje('Cronos Precision 1.3', @res, @msj);
 call sp_altaModeloYLineaMontaje('Toro Volcano 2.0 4x4', @res, @msj);
 call sp_altaModeloYLineaMontaje('Pulse Impetus 1.0T', @res, @msj);
 call sp_altaModeloYLineaMontaje('Fastback Audace 1.0T', @res, @msj);
@@ -722,19 +732,19 @@ call sp_altaModeloYLineaMontaje('Strada Ranch 1.3 CD', @res, @msj);
 -- ============================================================
 
 -- CONCESIONARIAS
-CALL sp_altaConcesionaria('Taraborelli Autos', 'Av. Rivadavia 8600, CABA', 1140001111, @res, @msj);
-CALL sp_altaConcesionaria('Dietrich San Isidro', 'Av. del Libertador 15100, San Isidro', 1140002222, @res, @msj);
-CALL sp_altaConcesionaria('Auto del Sol', 'Av. Fondeaderes 450, Pilar', 1140003333, @res, @msj);
-CALL sp_altaConcesionaria('Generali Automotores', 'Av. Mitre 1200, Avellaneda', 1140004444, @res, @msj);
-CALL sp_altaConcesionaria('Verona Autos', 'Calle 47 Nro 890, La Plata', 1140005555, @res, @msj);
-CALL sp_altaConcesionaria('Concesionaria Pruebas', 'Calle Falsa 123', 1140009999, @res, @msj);
+CALL sp_altaConcesionaria('Taraborelli Autos', 'Av. Rivadavia 8600, CABA', '11 4000-1111', @res, @msj);
+CALL sp_altaConcesionaria('Dietrich San Isidro', 'Av. del Libertador 15100, San Isidro', '11 4000-2222', @res, @msj);
+CALL sp_altaConcesionaria('Auto del Sol', 'Av. Fondeaderes 450, Pilar', '11 4000-3333', @res, @msj);
+CALL sp_altaConcesionaria('Generali Automotores', 'Av. Mitre 1200, Avellaneda', '11 4000-4444', @res, @msj);
+CALL sp_altaConcesionaria('Verona Autos', 'Calle 47 Nro 890, La Plata', '0221 400-5555', @res, @msj);
+CALL sp_altaConcesionaria('Concesionaria Pruebas', 'Calle Falsa 123', '11 4000-9999', @res, @msj);
 
 -- PROVEEDORES
-CALL sp_altaProveedor('Ternium Argentina S.A.', 'Av. Leandro N. Alem 1067, CABA', 1152001111, @res, @msj);
-CALL sp_altaProveedor('Pirelli Neumaticos S.A.I.C.', 'Ruta 8 Km 60, Merlo', 1152002222, @res, @msj);
-CALL sp_altaProveedor('PPG Industries Argentina', 'Calle 7 y 51, Pilar', 1152003333, @res, @msj);
-CALL sp_altaProveedor('Brimax Cables y Mazos', 'Av. Marquez 2300, San Martin', 1152004444, @res, @msj);
-CALL sp_altaProveedor('Opticas del Plata S.R.L.', 'Ruta 197 Km 12, Tigre', 1152005555, @res, @msj);
+CALL sp_altaProveedor('Ternium Argentina S.A.', 'Av. Leandro N. Alem 1067, CABA', '11 5200-1111', @res, @msj);
+CALL sp_altaProveedor('Pirelli Neumaticos S.A.I.C.', 'Ruta 8 Km 60, Merlo', '0220 520-2222', @res, @msj);
+CALL sp_altaProveedor('PPG Industries Argentina', 'Calle 7 y 51, Pilar', '0230 520-3333', @res, @msj);
+CALL sp_altaProveedor('Brimax Cables y Mazos', 'Av. Marquez 2300, San Martin', '011-5200-4444', @res, @msj);
+CALL sp_altaProveedor('Opticas del Plata S.R.L.', 'Ruta 197 Km 12, Tigre', '11 15 5200-5555', @res, @msj);
 
 -- INSUMOS
 CALL sp_altaInsumo('Pintura Bi-Capa Negro Vulcan 1L', @res, @msj);
@@ -780,11 +790,11 @@ CALL sp_altaDetalleCompraInsumo(5, 4, 300, 3200.00, @res, @msj);
 
 -- --- CONCESIONARIA ---
 -- Error: Duplicado por dirección
-CALL sp_altaConcesionaria('AutoCentral', 'Av. Rivadavia 8600, CABA', 1199999999, @res, @msj);
+CALL sp_altaConcesionaria('AutoCentral', 'Av. Rivadavia 8600, CABA', '11 4999-9999', @res, @msj);
 SELECT @res AS Resultado, @msj AS Mensaje_Error_Esperado;
 
 -- Éxito: Modificación
-CALL sp_modificacionConcesionaria(1, 'Taraborelli Autos Centro', 'Av. Rivadavia 8650, CABA', 1140009999, @res, @msj);
+CALL sp_modificacionConcesionaria(1, 'Taraborelli Autos Centro', 'Av. Rivadavia 8650, CABA', '11 4000-9999', @res, @msj);
 SELECT @res AS Resultado, @msj AS Mensaje_Exito;
 
 -- Éxito: Baja de concesionaria sin pedidos
@@ -798,7 +808,7 @@ SELECT @res AS Resultado, @msj AS Mensaje_Error_Esperado;
 
 -- --- PROVEEDOR ---
 -- Error: Duplicado por Razón Social
-CALL sp_altaProveedor('Ternium Argentina S.A.', 'Otra Direccion', 1100000000, @res, @msj);
+CALL sp_altaProveedor('Ternium Argentina S.A.', 'Otra Direccion', '011 0000-0000', @res, @msj);
 SELECT @res AS Resultado, @msj AS Mensaje_Error_Esperado;
 
 -- Error: Baja de proveedor con compras asociadas

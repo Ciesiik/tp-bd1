@@ -1,6 +1,7 @@
 USE terminal_automotriz;
-
-DROP PROCEDURE sp_crearVehiculosPedidos;
+DROP PROCEDURE IF EXISTS sp_crearVehiculosPedidos;
+DROP PROCEDURE IF EXISTS sp_iniciarMontajeVehiculo;
+DROP PROCEDURE IF EXISTS sp_avanzarVehiculoEstacion;
 
 DELIMITER //
 -- =========== PUNTO 3(a) =========== --
@@ -92,12 +93,12 @@ BEGIN
 END//
 
 -- =========== PUNTO 3(b) =========== --
-DROP PROCEDURE sp_iniciarMontajeVehiculo;
 
 CREATE PROCEDURE sp_iniciarMontajeVehiculo(
     IN p_num_chasis VARCHAR(17),
     OUT nResultado INT,
-    OUT cMensaje VARCHAR(256)
+    OUT cMensaje VARCHAR(256),
+    OUT p_chasis_ocupante VARCHAR(17)
 )
 BEGIN
     DECLARE v_id_modelo INT;
@@ -113,6 +114,7 @@ BEGIN
 
     SET nResultado = 0;
     SET cMensaje = '';
+    SET p_chasis_ocupante = '';
 
     -- 1. Validaciones previas
     IF NOT EXISTS (SELECT 1 FROM vehiculo WHERE num_chasis = p_num_chasis) THEN
@@ -143,8 +145,14 @@ BEGIN
             SET cMensaje = 'No se encontró la estación inicial (orden 1) para la línea de montaje de este vehículo.';
         -- 4. Validar si la estación 1 está ocupada por otro vehículo
         ELSEIF EXISTS (SELECT 1 FROM registro_vehiculo_estacion WHERE id_estacion = v_id_estacion_1 AND fecha_hora_egreso IS NULL) THEN
+            -- Informar el chasis del vehículo que ocupa la estación de trabajo
+            SELECT num_chasis INTO p_chasis_ocupante
+            FROM registro_vehiculo_estacion
+            WHERE id_estacion = v_id_estacion_1 AND fecha_hora_egreso IS NULL
+            LIMIT 1;
+
             SET nResultado = -6;
-            SET cMensaje = 'La estación inicial (1) de la línea de montaje se encuentra ocupada por otro vehículo.';
+            SET cMensaje = CONCAT('La estación inicial (1) de la línea de montaje se encuentra ocupada por el vehículo ', COALESCE(p_chasis_ocupante, ''), '.');
         ELSE
             -- 5. Insertar el inicio del recorrido
             START TRANSACTION;
@@ -160,7 +168,6 @@ BEGIN
 END//
 
 -- =========== PUNTO 3(c) =========== --
-DROP PROCEDURE sp_avanzarVehiculoEstacion;
 
 CREATE PROCEDURE sp_avanzarVehiculoEstacion(
     IN p_num_chasis VARCHAR(17),
@@ -172,6 +179,7 @@ BEGIN
     DECLARE v_orden_actual INT;
     DECLARE v_id_linea INT;
     DECLARE v_id_siguiente_estacion INT;
+    DECLARE v_chasis_ocupante VARCHAR(17);
 
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
@@ -214,8 +222,14 @@ LIMIT 1;
             IF v_id_siguiente_estacion IS NOT NULL THEN
                 -- Validar si la siguiente estación está ocupada por otro vehículo
                 IF EXISTS (SELECT 1 FROM registro_vehiculo_estacion WHERE id_estacion = v_id_siguiente_estacion AND fecha_hora_egreso IS NULL) THEN
+                    -- Informar el chasis del vehículo que ocupa la estación de trabajo
+                    SELECT num_chasis INTO v_chasis_ocupante
+                    FROM registro_vehiculo_estacion
+                    WHERE id_estacion = v_id_siguiente_estacion AND fecha_hora_egreso IS NULL
+                    LIMIT 1;
+
                     SET nResultado = -4;
-                    SET cMensaje = CONCAT('No se puede avanzar: la estación ', v_orden_actual + 1, ' se encuentra ocupada.');
+                    SET cMensaje = CONCAT('No se puede avanzar: la estación ', v_orden_actual + 1, ' se encuentra ocupada por el vehículo ', COALESCE(v_chasis_ocupante, ''), '.');
                 ELSE
                     START TRANSACTION;
 
@@ -355,7 +369,8 @@ LIMIT 1;
 -- ----------------------------------------------------------------------------
 SET @res = 0; SET @msj = '';
 
-CALL sp_iniciarMontajeVehiculo(@chasis_1, @res, @msj);
+SET @ocupa = '';
+CALL sp_iniciarMontajeVehiculo(@chasis_1, @res, @msj, @ocupa);
 SELECT 'Prueba 1 (Éxito)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
 
 -- Verificación del registro generado
@@ -368,7 +383,8 @@ WHERE num_chasis = @chasis_1 AND fecha_hora_egreso IS NULL;
 -- ----------------------------------------------------------------------------
 SET @res = 0; SET @msj = '';
 
-CALL sp_iniciarMontajeVehiculo('INEXISTENTE', @res, @msj);
+SET @ocupa = '';
+CALL sp_iniciarMontajeVehiculo('INEXISTENTE', @res, @msj, @ocupa);
 SELECT 'Prueba 2 (Inexistente)' AS Test, 'INEXISTENTE' AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
 
 
@@ -377,7 +393,8 @@ SELECT 'Prueba 2 (Inexistente)' AS Test, 'INEXISTENTE' AS Chasis_Evaluado, @res 
 -- ----------------------------------------------------------------------------
 SET @res = 0; SET @msj = '';
 
-CALL sp_iniciarMontajeVehiculo(@chasis_finalizado, @res, @msj);
+SET @ocupa = '';
+CALL sp_iniciarMontajeVehiculo(@chasis_finalizado, @res, @msj, @ocupa);
 SELECT 'Prueba 3 (Finalizado)' AS Test, @chasis_finalizado AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
 
 
@@ -387,7 +404,8 @@ SELECT 'Prueba 3 (Finalizado)' AS Test, @chasis_finalizado AS Chasis_Evaluado, @
 -- Intentamos ingresar de nuevo @chasis_1 que ingresó en la Prueba 1
 SET @res = 0; SET @msj = '';
 
-CALL sp_iniciarMontajeVehiculo(@chasis_1, @res, @msj);
+SET @ocupa = '';
+CALL sp_iniciarMontajeVehiculo(@chasis_1, @res, @msj, @ocupa);
 SELECT 'Prueba 4 (Ya Activo)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
 
 
@@ -397,51 +415,54 @@ SELECT 'Prueba 4 (Ya Activo)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Res
 -- Intentamos ingresar @chasis_2 mientras @chasis_1 sigue ocupando la Estación 1
 SET @res = 0; SET @msj = '';
 
-CALL sp_iniciarMontajeVehiculo(@chasis_2, @res, @msj);
-SELECT 'Prueba 5 (Estación Ocupada)' AS Test, @chasis_2 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+SET @ocupa = '';
+CALL sp_iniciarMontajeVehiculo(@chasis_2, @res, @msj, @ocupa);
+SELECT 'Prueba 5 (Estación Ocupada)' AS Test, @chasis_2 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje, @ocupa AS Chasis_Ocupante;
 
 -- ============================================================================
 -- CASOS DE PRUEBA: sp_avanzarVehiculoEstacion
 -- ============================================================================
 
--- A) Chasis activo actualmente en una estación intermedia
-SELECT r.num_chasis INTO @chasis_intermedio
-FROM registro_vehiculo_estacion r
-INNER JOIN estacion_trabajo e ON r.id_estacion = e.id_estacion
-INNER JOIN vehiculo v ON r.num_chasis = v.num_chasis
-WHERE r.fecha_hora_egreso IS NULL 
-  AND v.fecha_fin IS NULL
-  AND e.orden < (SELECT MAX(orden) FROM estacion_trabajo WHERE id_linea = e.id_linea)
-LIMIT 1;
+-- ----------------------------------------------------------------------------
+-- CONDICIONES INICIALES DETERMINISTAS
+-- ----------------------------------------------------------------------------
+-- Estado dejado por los casos de prueba de sp_iniciarMontajeVehiculo:
+--   * @chasis_1 quedó ACTIVO en la estación de orden 1.
+--   * @chasis_2 nunca ingresó a montaje (su intento fue rechazado con -6).
+-- A partir de ahí se fijan todos los escenarios de avance.
 
--- B) Chasis que NO ha ingresado a montaje (sin registros activos)
-SELECT num_chasis INTO @chasis_no_iniciado
+-- A) Chasis activo en una estación intermedia -> @chasis_1 (en orden 1)
+SET @chasis_intermedio = @chasis_1;
+
+-- B) Chasis que NO ha ingresado a montaje -> @chasis_2
+SET @chasis_no_iniciado = @chasis_2;
+
+-- C) Chasis que recorrerá toda la línea hasta la ÚLTIMA estación -> @chasis_1
+SET @chasis_ultima_estacion = @chasis_1;
+
+-- D) Chasis para el escenario de bloqueo (mismo modelo -> misma línea):
+--    - @chasis_bloqueador: quedará quieto en la estación de orden 2.
+--    - @chasis_bloqueado: quedará esperando en la estación de orden 1.
+SELECT num_chasis INTO @chasis_bloqueador
 FROM vehiculo v
-WHERE NOT EXISTS (
-    SELECT 1 FROM registro_vehiculo_estacion r WHERE r.num_chasis = v.num_chasis
-) AND v.fecha_fin IS NULL
+WHERE v.id_modelo = (SELECT id_modelo FROM vehiculo WHERE num_chasis = @chasis_1)
+  AND v.num_chasis NOT IN (@chasis_1, @chasis_2)
+  AND v.fecha_fin IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM registro_vehiculo_estacion r WHERE r.num_chasis = v.num_chasis
+  )
+ORDER BY v.num_chasis
 LIMIT 1;
 
--- C) Chasis ubicado en la ÚLTIMA estación de su línea
-SELECT r.num_chasis INTO @chasis_ultima_estacion
-FROM registro_vehiculo_estacion r
-INNER JOIN estacion_trabajo e ON r.id_estacion = e.id_estacion
-INNER JOIN (
-    SELECT id_linea, MAX(orden) AS max_orden
-    FROM estacion_trabajo
-    GROUP BY id_linea
-) ult ON e.id_linea = ult.id_linea AND e.orden = ult.max_orden
-WHERE r.fecha_hora_egreso IS NULL
-LIMIT 1;
-
--- D) Chasis con la siguiente estación ocupada (si existe un escenario de bloqueo)
-SELECT r1.num_chasis INTO @chasis_bloqueado
-FROM registro_vehiculo_estacion r1
-INNER JOIN estacion_trabajo e1 ON r1.id_estacion = e1.id_estacion
-INNER JOIN estacion_trabajo e2 ON e1.id_linea = e2.id_linea AND e2.orden = e1.orden + 1
-INNER JOIN registro_vehiculo_estacion r2 ON r2.id_estacion = e2.id_estacion
-WHERE r1.fecha_hora_egreso IS NULL 
-  AND r2.fecha_hora_egreso IS NULL
+SELECT num_chasis INTO @chasis_bloqueado
+FROM vehiculo v
+WHERE v.id_modelo = (SELECT id_modelo FROM vehiculo WHERE num_chasis = @chasis_1)
+  AND v.num_chasis NOT IN (@chasis_1, @chasis_2, @chasis_bloqueador)
+  AND v.fecha_fin IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM registro_vehiculo_estacion r WHERE r.num_chasis = v.num_chasis
+  )
+ORDER BY v.num_chasis
 LIMIT 1;
 
 
@@ -480,12 +501,31 @@ SELECT 'Prueba 3 (No Iniciado)' AS Test, @chasis_no_iniciado AS Chasis_Evaluado,
 
 
 -- ----------------------------------------------------------------------------
--- PRUEBA 4: Error - Siguiente Estación Ocupada (Esperado: Resultado = -4)
+-- CONDICIONES INICIALES - PRUEBA 5: llevar a @chasis_1 a la última estación
 -- ----------------------------------------------------------------------------
+-- @chasis_1 quedó en la estación de orden 2 (avanzó en la Prueba 1).
+-- Se lo mueve paso a paso (2 -> 3 -> 4 -> 5 -> 6) hasta la última estación.
 SET @res = 0; SET @msj = '';
+CALL sp_avanzarVehiculoEstacion(@chasis_1, @res, @msj);
+SELECT 'Setup (a estación 3)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
 
-CALL sp_avanzarVehiculoEstacion(@chasis_bloqueado, @res, @msj);
-SELECT 'Prueba 4 (Siguiente Ocupada)' AS Test, @chasis_bloqueado AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+SET @res = 0; SET @msj = '';
+CALL sp_avanzarVehiculoEstacion(@chasis_1, @res, @msj);
+SELECT 'Setup (a estación 4)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+SET @res = 0; SET @msj = '';
+CALL sp_avanzarVehiculoEstacion(@chasis_1, @res, @msj);
+SELECT 'Setup (a estación 5)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+SET @res = 0; SET @msj = '';
+CALL sp_avanzarVehiculoEstacion(@chasis_1, @res, @msj);
+SELECT 'Setup (a estación 6)' AS Test, @chasis_1 AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+-- Verificación: @chasis_1 quedó activo en la última estación (orden 6)
+SELECT r.num_chasis, e.orden AS estacion_actual
+FROM registro_vehiculo_estacion r
+INNER JOIN estacion_trabajo e ON r.id_estacion = e.id_estacion
+WHERE r.num_chasis = @chasis_ultima_estacion AND r.fecha_hora_egreso IS NULL;
 
 
 -- ----------------------------------------------------------------------------
@@ -500,3 +540,39 @@ SELECT 'Prueba 5 (Finalizar Fabricación)' AS Test, @chasis_ultima_estacion AS C
 SELECT num_chasis, id_modelo, fecha_inicio, fecha_fin 
 FROM vehiculo 
 WHERE num_chasis = @chasis_ultima_estacion;
+
+
+-- ----------------------------------------------------------------------------
+-- CONDICIONES INICIALES - PRUEBA 4: generar el escenario de estación ocupada
+-- ----------------------------------------------------------------------------
+-- 1) @chasis_bloqueador entra a la línea y se queda quieto en la estación de orden 2.
+SET @res = 0; SET @msj = '';
+SET @ocupa = '';
+CALL sp_iniciarMontajeVehiculo(@chasis_bloqueador, @res, @msj, @ocupa);
+SELECT 'Setup (bloqueador en estación 1)' AS Test, @chasis_bloqueador AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+SET @res = 0; SET @msj = '';
+CALL sp_avanzarVehiculoEstacion(@chasis_bloqueador, @res, @msj);
+SELECT 'Setup (bloqueador a estación 2)' AS Test, @chasis_bloqueador AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+-- 2) @chasis_bloqueado entra a la estación de orden 1 (quedó libre) detrás del bloqueador.
+SET @res = 0; SET @msj = '';
+SET @ocupa = '';
+CALL sp_iniciarMontajeVehiculo(@chasis_bloqueado, @res, @msj, @ocupa);
+SELECT 'Setup (bloqueado en estación 1)' AS Test, @chasis_bloqueado AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+
+-- ----------------------------------------------------------------------------
+-- PRUEBA 4: Error - Siguiente Estación Ocupada (Esperado: Resultado = -4)
+-- ----------------------------------------------------------------------------
+SET @res = 0; SET @msj = '';
+
+CALL sp_avanzarVehiculoEstacion(@chasis_bloqueado, @res, @msj);
+SELECT 'Prueba 4 (Siguiente Ocupada)' AS Test, @chasis_bloqueado AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+
+-- Verificación: estado final de las estaciones activas (quedan bloqueado y bloqueador)
+SELECT r.num_chasis, e.id_linea, e.orden AS estacion_actual
+FROM registro_vehiculo_estacion r
+INNER JOIN estacion_trabajo e ON r.id_estacion = e.id_estacion
+WHERE r.fecha_hora_egreso IS NULL
+ORDER BY e.id_linea, e.orden;

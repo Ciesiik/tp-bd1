@@ -6,14 +6,6 @@ USE terminal_automotriz;
 -- Orden de ejecucion: terminal_automotriz.sql -> SPs_etapa_3.sql -> SPs_etapa_4.sql -> este archivo.
 -- Ejecutar una sola vez por base: MySQL no tiene CREATE INDEX IF NOT EXISTS,
 -- y repetir el script falla por nombre de indice duplicado.
---
--- Criterios de diseño:
---  * Estructura B-TREE: soporta igualdad, rangos y uso por prefijo de columnas.
---  * En un indice compuesto el orden de las columnas importa: primero la
---    columna con igualdad (=), despues la de la condicion IS NULL / IS NOT NULL.
---  * Se crean pocos indices, solo sobre las columnas que filtran en las
---    consultas de las etapas 3 y 4, porque cada indice encarece los
---    INSERT/UPDATE/DELETE y ocupa espacio en disco.
 
 -- ------------------------------------------------------------
 -- INDICE 1: estacion ocupada

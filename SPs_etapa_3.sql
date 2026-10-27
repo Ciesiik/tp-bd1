@@ -87,6 +87,8 @@ BEGIN
 		CLOSE cur;
 
 		COMMIT;
+        
+        SET cMensaje = 'Vehiculos creados exitosamente.';
     END IF;
 END//
 
@@ -159,6 +161,8 @@ BEGIN
             VALUES (p_num_chasis, v_id_estacion_1, NOW());
 
             COMMIT;
+            
+            SET cMensaje = 'Vehículo ingresado a la estación inicial (1) de montaje exitosamente.';
         END IF;
     END IF;
 END//
@@ -239,6 +243,8 @@ LIMIT 1;
                     VALUES (p_num_chasis, v_id_siguiente_estacion, NOW());
 
                     COMMIT;
+                    
+                    SET cMensaje = CONCAT('Vehículo avanzado con éxito a la estación de orden ', v_orden_actual + 1, '.');
                 END IF;
             ELSE
                 -- Era la última estación: finalizar fabricación del vehículo
@@ -255,6 +261,8 @@ LIMIT 1;
                 WHERE num_chasis = p_num_chasis;
 
                 COMMIT;
+                
+                SET cMensaje = 'El vehículo completó la última estación de la línea y finalizó su proceso de fabricación.';
             END IF;
         END IF;
     END IF;

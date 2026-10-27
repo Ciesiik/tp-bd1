@@ -4,7 +4,7 @@ DROP PROCEDURE IF EXISTS sp_iniciarMontajeVehiculo;
 DROP PROCEDURE IF EXISTS sp_avanzarVehiculoEstacion;
 
 DELIMITER //
--- =========== PUNTO 3(a) =========== --
+-- =========== PUNTO 3 =========== --
 CREATE PROCEDURE sp_crearVehiculosPedidos(
 	IN p_id_pedido INT,
     OUT nResultado INT,
@@ -92,7 +92,7 @@ BEGIN
     END IF;
 END//
 
--- =========== PUNTO 3(b) =========== --
+-- =========== PUNTO 4 =========== --
 
 CREATE PROCEDURE sp_iniciarMontajeVehiculo(
     IN p_num_chasis VARCHAR(17),
@@ -167,7 +167,7 @@ BEGIN
     END IF;
 END//
 
--- =========== PUNTO 3(c) =========== --
+-- =========== PUNTO 5 =========== --
 
 CREATE PROCEDURE sp_avanzarVehiculoEstacion(
     IN p_num_chasis VARCHAR(17),

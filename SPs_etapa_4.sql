@@ -2,6 +2,7 @@ USE terminal_automotriz;
 
 DROP PROCEDURE IF EXISTS sp_listarVehiculosPorPedido;
 DROP PROCEDURE IF EXISTS sp_listarInsumosPorPedido;
+DROP PROCEDURE IF EXISTS sp_tiempoPromedioPorLinea;
 
 DELIMITER //
 
@@ -11,39 +12,27 @@ BEGIN
 	IF NOT EXISTS (SELECT 1 FROM pedido_vehiculo WHERE id_pedido = p_id_pedido) THEN
         SELECT 'ERROR: El pedido especificado no existe.' AS mensaje;
     ELSEIF NOT EXISTS (SELECT 1 FROM vehiculo WHERE id_pedido = p_id_pedido) THEN
-        SELECT 'ERROR: El pedido existe, pero aún no se generaron los vehículos ' AS mensaje;
+        SELECT 'ERROR: El pedido existe, pero aún no se generaron los vehículos.' AS mensaje;
     ELSE
 		SELECT 
-		v.num_chasis AS chasis,
-		IF(v.fecha_fin IS NOT NULL, 'SI', 'NO') AS finalizado,
-		CASE
-			WHEN v.fecha_fin IS NOT NULL THEN 'FINALIZADO'
-			WHEN
-				EXISTS( SELECT 
-						1
-					FROM
-						registro_vehiculo_estacion r
-					WHERE
-						r.num_chasis = v.num_chasis
-							AND r.fecha_hora_egreso IS NULL)
-			THEN
-				(SELECT 
-						CONCAT('ESTACION ',
-									et.orden,
-									' - ',
-									UPPER(t.tarea))
-					FROM
-						registro_vehiculo_estacion r
-							INNER JOIN
-						estacion_trabajo et ON et.id_estacion = r.id_estacion
-							INNER JOIN
-						tarea t ON t.id_tarea = et.id_tarea
-					WHERE
-						r.num_chasis = v.num_chasis
-							AND r.fecha_hora_egreso IS NULL
-					LIMIT 1)
-			ELSE 'NO INGRESO A MONTAJE'
-		END AS estacion_actual
+			v.num_chasis AS chasis,
+			IF(v.fecha_fin IS NOT NULL, 'SI', 'NO') AS finalizado,
+			CASE
+				WHEN v.fecha_fin IS NOT NULL THEN 'FINALIZADO'
+				WHEN EXISTS(
+					SELECT 1
+					FROM registro_vehiculo_estacion r
+					WHERE r.num_chasis = v.num_chasis AND r.fecha_hora_egreso IS NULL
+				) THEN (
+					SELECT CONCAT('ESTACION ', et.orden,' - ', UPPER(t.tarea))
+					FROM registro_vehiculo_estacion r
+					INNER JOIN estacion_trabajo et ON et.id_estacion = r.id_estacion
+					INNER JOIN tarea t ON t.id_tarea = et.id_tarea
+					WHERE r.num_chasis = v.num_chasis AND r.fecha_hora_egreso IS NULL
+					LIMIT 1
+				)
+				ELSE 'NO INGRESO A MONTAJE'
+			END AS estacion_actual
 		FROM vehiculo v
 		WHERE v.id_pedido = p_id_pedido
 		ORDER BY v.num_chasis;
@@ -115,7 +104,31 @@ BEGIN
     END IF;
 END//
 
+-- =========== PUNTO 8 =========== --
+CREATE PROCEDURE sp_tiempoPromedioPorLinea(IN p_id_linea INT)
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM linea_montaje WHERE id_linea = p_id_linea) THEN
+        SELECT 'ERROR: La línea de montaje especificada no existe.' AS mensaje;
+    ELSEIF NOT EXISTS (
+        SELECT 1 
+        FROM vehiculo v
+        JOIN linea_montaje lm ON lm.id_modelo = v.id_modelo
+        WHERE lm.id_linea = p_id_linea AND v.fecha_fin IS NOT NULL
+    ) THEN
+        SELECT 'AVISO: No hay vehículos terminados en esta línea.' AS mensaje;
+    ELSE
+        SELECT p_id_linea AS id_linea,
+            COUNT(*) AS cantidad_terminados,
+            ROUND(AVG(TIMESTAMPDIFF(SECOND, v.fecha_inicio, v.fecha_fin) / 60.0), 2) AS promedio_minutos
+        FROM vehiculo v
+        JOIN linea_montaje lm ON lm.id_modelo = v.id_modelo
+        WHERE lm.id_linea = p_id_linea AND v.fecha_fin IS NOT NULL;
+    END IF;
+END//
+
 DELIMITER ;
 
 CALL sp_listarVehiculosPorPedido(2);
 CALL sp_listarInsumosPorPedido(2);
+UPDATE `terminal_automotriz`.`vehiculo` SET `fecha_fin` = '2026-10-28 18:30:45' WHERE (`num_chasis` = '165F388809C7B7881'); -- actualizacion del tiempo de finalizacion con fines de prueba mas realistas
+CALL sp_tiempoPromedioPorLinea(3);

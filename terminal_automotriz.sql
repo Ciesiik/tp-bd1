@@ -705,8 +705,6 @@ BEGIN
         (v_id_linea, 6, 6); -- Prueba
 
         COMMIT;
-        
-        SET cMensaje = 'Modelo, línea y estaciones de trabajo creados exitosamente.';
     END IF;
 END//
 

@@ -87,8 +87,6 @@ BEGIN
 		CLOSE cur;
 
 		COMMIT;
-
-		SET cMensaje = 'Vehiculos creados exitosamente.';
     END IF;
 END//
 
@@ -161,8 +159,6 @@ BEGIN
             VALUES (p_num_chasis, v_id_estacion_1, NOW());
 
             COMMIT;
-
-            SET cMensaje = 'Vehículo ingresado a la estación inicial (1) de montaje exitosamente.';
         END IF;
     END IF;
 END//
@@ -243,8 +239,6 @@ LIMIT 1;
                     VALUES (p_num_chasis, v_id_siguiente_estacion, NOW());
 
                     COMMIT;
-
-                    SET cMensaje = CONCAT('Vehículo avanzado con éxito a la estación de orden ', v_orden_actual + 1, '.');
                 END IF;
             ELSE
                 -- Era la última estación: finalizar fabricación del vehículo
@@ -261,8 +255,6 @@ LIMIT 1;
                 WHERE num_chasis = p_num_chasis;
 
                 COMMIT;
-
-                SET cMensaje = 'El vehículo completó la última estación de la línea y finalizó su proceso de fabricación.';
             END IF;
         END IF;
     END IF;
@@ -357,11 +349,8 @@ WHERE v.id_modelo = (SELECT id_modelo FROM vehiculo WHERE num_chasis = @chasis_1
   ) AND v.fecha_fin IS NULL
 LIMIT 1;
 
--- C) Seleccionar (si existe) un chasis ya finalizado
-SELECT num_chasis INTO @chasis_finalizado
-FROM vehiculo
-WHERE fecha_fin IS NOT NULL
-LIMIT 1;
+-- C) El chasis finalizado se selecciona más abajo (PRUEBA 3), una vez que
+--    la Prueba 5 de sp_avanzarVehiculoEstacion haya finalizado un vehículo.
 
 
 -- ----------------------------------------------------------------------------
@@ -388,14 +377,8 @@ CALL sp_iniciarMontajeVehiculo('INEXISTENTE', @res, @msj, @ocupa);
 SELECT 'Prueba 2 (Inexistente)' AS Test, 'INEXISTENTE' AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
 
 
--- ----------------------------------------------------------------------------
--- PRUEBA 3: Error - Vehículo ya Finalizado (Esperado: Resultado = -3)
--- ----------------------------------------------------------------------------
-SET @res = 0; SET @msj = '';
-
-SET @ocupa = '';
-CALL sp_iniciarMontajeVehiculo(@chasis_finalizado, @res, @msj, @ocupa);
-SELECT 'Prueba 3 (Finalizado)' AS Test, @chasis_finalizado AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
+-- PRUEBA 3 (Vehículo ya finalizado): se ejecuta más abajo, después de la
+-- Prueba 5 de sp_avanzarVehiculoEstacion, que es cuando ya existe un vehículo finalizado.
 
 
 -- ----------------------------------------------------------------------------
@@ -540,6 +523,22 @@ SELECT 'Prueba 5 (Finalizar Fabricación)' AS Test, @chasis_ultima_estacion AS C
 SELECT num_chasis, id_modelo, fecha_inicio, fecha_fin 
 FROM vehiculo 
 WHERE num_chasis = @chasis_ultima_estacion;
+
+
+-- ----------------------------------------------------------------------------
+-- PRUEBA 3 de sp_iniciarMontajeVehiculo: Error - Vehículo ya Finalizado (Esperado: Resultado = -3)
+-- ----------------------------------------------------------------------------
+-- Se usa el vehículo que acaba de finalizar en la Prueba 5.
+SELECT num_chasis INTO @chasis_finalizado
+FROM vehiculo
+WHERE fecha_fin IS NOT NULL
+LIMIT 1;
+
+SET @res = 0; SET @msj = '';
+
+SET @ocupa = '';
+CALL sp_iniciarMontajeVehiculo(@chasis_finalizado, @res, @msj, @ocupa);
+SELECT 'Prueba 3 (Finalizado)' AS Test, @chasis_finalizado AS Chasis_Evaluado, @res AS Resultado, @msj AS Mensaje;
 
 
 -- ----------------------------------------------------------------------------

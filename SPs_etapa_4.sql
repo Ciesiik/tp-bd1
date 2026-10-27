@@ -130,5 +130,10 @@ DELIMITER ;
 
 CALL sp_listarVehiculosPorPedido(2);
 CALL sp_listarInsumosPorPedido(2);
-UPDATE `terminal_automotriz`.`vehiculo` SET `fecha_fin` = '2026-10-28 18:30:45' WHERE (`num_chasis` = '165F388809C7B7881'); -- actualizacion del tiempo de finalizacion con fines de prueba mas realistas
+-- Actualizacion del tiempo de finalizacion con fines de prueba mas realistas:
+-- los vehiculos terminados pasan a tener un tiempo de construccion de 150 minutos.
+-- Se desactiva el modo seguro solo para este UPDATE (el WHERE no usa la clave primaria).
+SET SQL_SAFE_UPDATES = 0;
+UPDATE vehiculo SET fecha_fin = DATE_ADD(fecha_inicio, INTERVAL 150 MINUTE) WHERE fecha_fin IS NOT NULL;
+SET SQL_SAFE_UPDATES = 1;
 CALL sp_tiempoPromedioPorLinea(3);

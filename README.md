@@ -53,18 +53,34 @@ Este repositorio contiene el trabajo del proyecto de base de datos para una term
     - Dada una línea de montaje, indica la cantidad de vehículos terminados y el tiempo promedio de construcción en minutos, teniendo en cuenta únicamente los vehículos con `fecha_fin` cargada.
     - Utiliza `TIMESTAMPDIFF(SECOND, fecha_inicio, fecha_fin)` para obtener mayor precisión en el cálculo.
 
-### 4) Modelo conceptual / lógico
+### 4) Script completo de la etapa 5 del trabajo
+
+- `indices_etapa_5.sql`
+- Optimización de rendimiento e índices: En esta etapa se implementaron índices orientados a optimizar las consultas de reportes más pesadas y las validaciones transicionales críticas de disponibilidad de estaciones en los procedimientos almacenados.
+
+  - Índices creados
+
+    - **`idx_registro_estacion_egreso`** (`registro_vehiculo_estacion` sobre `id_estacion, fecha_hora_egreso`)
+      * **Propósito:** Acelera las validaciones de disponibilidad de estaciones (`fecha_hora_egreso IS NULL`) en `sp_iniciarMontajeVehiculo` y `sp_avanzarVehiculoEstacion`, evitando recorridos completos de tabla (*Table Scans*).
+
+    - **`idx_registro_chasis_egreso`** (`registro_vehiculo_estacion` sobre `num_chasis, fecha_hora_egreso`)
+      * **Propósito:** Optimiza la búsqueda de la estación activa de un vehículo y dinamiza la subconsulta correlacionada del reporte de vehículos por pedido (`sp_listarVehiculosPorPedido`).
+
+    - **`idx_vehiculo_modelo_fin`** (`vehiculo` sobre `id_modelo, fecha_fin`)
+      * **Propósito:** Facilita el filtrado de vehículos terminados y el `JOIN` con `linea_montaje` en el reporte de tiempos promedio de fabricación (`sp_tiempoPromedioPorLinea`).
+
+### 5) Modelo conceptual / lógico
 - `modelos.mwb`
 - Es el archivo del modelo de MySQL Workbench.
 - Aquí se define visualmente la estructura de la base de datos.
 - Si se trabaja en el diseño, este archivo debe mantenerse sincronizado con los cambios aplicados en los scripts SQL.
 
-### 5) Documentación y entregas del proyecto
+### 6) Documentación y entregas del proyecto
 - `TP Integrador.pdf`
 - Documento del trabajo práctico integrador.
 - Sirve como referencia del enunciado, requisitos funcionales y reglas del proyecto.
 
-### 6) Diagrama visual del esquema
+### 7) Diagrama visual del esquema
 - `DER_terminal_automotriz.png`
 - Imagen del diagrama entidad-relación generado a partir del modelo.
 - Útil para entender rápidamente las tablas y sus relaciones.
@@ -79,6 +95,7 @@ El repositorio se organiza alrededor de un esquema SQL que representa un sistema
 - Estructura de datos: `terminal_automotriz.sql`
 - Lógica de negocio: `SPs_etapa_3.sql` (generación de vehículos, inicio y avance por estaciones de montaje)
 - Reportes: `SPs_etapa_4.sql` (listado por pedido, insumos requeridos y tiempo promedio por línea de montaje)
+- Indices de optimización: `indices_etapa_5.sql`
 
 En otras palabras:
 
@@ -93,10 +110,11 @@ En otras palabras:
 1. Crear la base de datos desde el script principal ejecutando `terminal_automotriz.sql`.
 2. Ejecutar `SPs_etapa_3.sql` para cargar la lógica de producción y sus casos de prueba.
 3. Ejecutar `SPs_etapa_4.sql` para cargar los procedimientos de reporte y la carga mínima de `insumo_estacion`.
-4. Revisar el modelo en MySQL Workbench si se necesita cambiar la estructura.
-5. Si se modifican tablas o relaciones, actualizar también el script SQL.
-6. Probar los procedimientos con datos de ejemplo antes de entregar cambios.
-7. Mantener comentarios claros en los scripts para que otros integrantes entiendan el propósito.
+4. Ejecutar `indices_etapa_5.sql` para cargar los indices de optimizacion.
+5. Revisar el modelo en MySQL Workbench si se necesita cambiar la estructura.
+6. Si se modifican tablas o relaciones, actualizar también el script SQL.
+7. Probar los procedimientos con datos de ejemplo antes de entregar cambios.
+8. Mantener comentarios claros en los scripts para que otros integrantes entiendan el propósito.
 
 ---
 
@@ -191,6 +209,7 @@ CALL sp_tiempoPromedioPorLinea(3);
 - `terminal_automotriz.sql`: base de datos completa, tablas, relaciones, ABMs y procedimientos iniciales.
 - `SPs_etapa_3.sql`: lógica de producción (generación de vehículos, inicio y avance por estaciones de montaje) con casos de prueba.
 - `SPs_etapa_4.sql`: procedimientos de reporte (puntos 6, 7 y 8), carga mínima en `insumo_estacion` y llamadas de prueba.
+- `indices_etapa_5.sql`: indices de optimizacion de consultas (punto 9)
 - `modelos.mwb`: diseño visual del esquema.
 - `DER_terminal_automotriz.png`: diagrama del sistema.
 - `TP Integrador.pdf`: referencia del trabajo práctico.
